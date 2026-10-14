@@ -9,10 +9,10 @@ services:
     envVars:
       # All optional. Without WHOOP keys, each visitor connects with their own WHOOP app,
       # or uses sample data. Without a Google client ID, Calendar stays on demo events.
-      # With the frontend on Vercel (web/vercel.json proxies /api and /auth here), set this to
-      # the Vercel URL, e.g. https://context.vercel.app. Leave it empty to use Render's own URL.
+      # The frontend is on Vercel (web/vercel.json proxies /api and /auth here), so the public
+      # address is the Vercel one. WHOOP's redirect URL is this + /auth/whoop/callback.
       - key: PUBLIC_URL
-        sync: false
+        value: https://whoop-context-web.vercel.app
       - key: WHOOP_CLIENT_ID
         sync: false
       - key: WHOOP_CLIENT_SECRET
