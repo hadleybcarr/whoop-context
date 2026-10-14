@@ -1,0 +1,170 @@
+{
+  "generated_at": "2026-10-13T06:10:58.765778+00:00",
+  "source": "demo_events.csv",
+  "n_events": 201,
+  "n_rated": 158,
+  "models": {
+    "stress": {
+      "mae": 0.31252198500710987,
+      "baseline_mae": 0.5996447238658776,
+      "r2": 0.6781964913712515,
+      "n": 156
+    },
+    "feeling": {
+      "mae": 0.5636041779165915,
+      "baseline_mae": 0.8291139240506329,
+      "r2": 0.482671579187381,
+      "n": 158
+    }
+  },
+  "events": [
+    {
+      "title": "Exam Review Session",
+      "n": 7,
+      "stress": 2.73,
+      "observed_stress": 2.81,
+      "feeling": -1.16,
+      "observed_feeling": -1.4,
+      "active": false
+    },
+    {
+      "title": "Investor Pitch Practice",
+      "n": 8,
+      "stress": 2.59,
+      "observed_stress": 2.69,
+      "feeling": -0.29,
+      "observed_feeling": -0.4,
+      "active": false
+    },
+    {
+      "title": "1:1 with Manager",
+      "n": 7,
+      "stress": 2.53,
+      "observed_stress": 2.57,
+      "feeling": -0.24,
+      "observed_feeling": -0.2,
+      "active": false
+    },
+    {
+      "title": "Budget Review",
+      "n": 7,
+      "stress": 2.22,
+      "observed_stress": 2.23,
+      "feeling": -0.67,
+      "observed_feeling": -0.8,
+      "active": false
+    },
+    {
+      "title": "Design Critique",
+      "n": 13,
+      "stress": 2.17,
+      "observed_stress": 2.18,
+      "feeling": -0.07,
+      "observed_feeling": -0.1,
+      "active": false
+    },
+    {
+      "title": "Organic Chemistry Lecture",
+      "n": 13,
+      "stress": 1.67,
+      "observed_stress": 1.67,
+      "feeling": -0.48,
+      "observed_feeling": -0.5,
+      "active": false
+    },
+    {
+      "title": "Office Hours",
+      "n": 14,
+      "stress": 1.55,
+      "observed_stress": 1.53,
+      "feeling": 0.38,
+      "observed_feeling": 0.36,
+      "active": false
+    },
+    {
+      "title": "Family Call",
+      "n": 9,
+      "stress": 1.48,
+      "observed_stress": 1.5,
+      "feeling": 1.13,
+      "observed_feeling": 1.12,
+      "active": false
+    },
+    {
+      "title": "Lunch with Sam",
+      "n": 7,
+      "stress": 1.31,
+      "observed_stress": 1.22,
+      "feeling": 1.45,
+      "observed_feeling": 1.67,
+      "active": false
+    },
+    {
+      "title": "Deep Work Block",
+      "n": 23,
+      "stress": 1.04,
+      "observed_stress": 1.03,
+      "feeling": 0.5,
+      "observed_feeling": 0.53,
+      "active": false
+    },
+    {
+      "title": "Team Standup",
+      "n": 35,
+      "stress": 1.03,
+      "observed_stress": 1.02,
+      "feeling": 0.0,
+      "observed_feeling": 0.0,
+      "active": false
+    },
+    {
+      "title": "Coffee with Friends",
+      "n": 13,
+      "stress": 1.01,
+      "observed_stress": 0.96,
+      "feeling": 1.31,
+      "observed_feeling": 1.4,
+      "active": false
+    },
+    {
+      "title": "Morning Activity",
+      "n": 31,
+      "stress": null,
+      "observed_stress": null,
+      "feeling": 1.12,
+      "observed_feeling": 1.12,
+      "active": true
+    },
+    {
+      "title": "Yoga",
+      "n": 14,
+      "stress": null,
+      "observed_stress": null,
+      "feeling": 1.17,
+      "observed_feeling": 1.23,
+      "active": true
+    }
+  ],
+  "words": {
+    "stress_up": [
+      "investor pitch practice",
+      "manager",
+      "exam review session",
+      "family"
+    ],
+    "stress_down": [
+      "coffee friends",
+      "lunch sam",
+      "office hours",
+      "team standup"
+    ],
+    "joy_up": [
+      "lunch sam",
+      "yoga",
+      "coffee friends"
+    ],
+    "joy_down": [
+      "exam review session"
+    ]
+  }
+}

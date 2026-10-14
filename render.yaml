@@ -1,0 +1,17 @@
+# Render Blueprint: New → Blueprint → pick this repo. Render builds the Dockerfile and
+# fills in RENDER_EXTERNAL_URL, which the server uses for its public address.
+services:
+  - type: web
+    name: final-thread
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      # All optional. Without WHOOP keys, each visitor connects with their own WHOOP app,
+      # or uses sample data. Without a Google client ID, Calendar stays on demo events.
+      - key: WHOOP_CLIENT_ID
+        sync: false
+      - key: WHOOP_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false

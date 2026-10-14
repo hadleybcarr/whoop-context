@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!serve.py
+!ml/train.py
+!ml/requirements.txt
+!web/

@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "final-thread",
+      "runtimeExecutable": "ml/.venv/bin/python",
+      "runtimeArgs": [
+        "serve.py",
+        "8000"
+      ],
+      "port": 8000
+    }
+  ]
+}

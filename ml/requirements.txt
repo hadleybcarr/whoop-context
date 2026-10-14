@@ -1,0 +1,4 @@
+# What the server needs to train (pinned so deploys match local).
+numpy==2.5.4
+pandas==3.0.6
+scikit-learn==1.9.1

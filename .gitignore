@@ -1,0 +1,8 @@
+ios/build/
+ml/.venv/
+__pycache__/
+.DS_Store
+xcuserdata/
+.env
+ml/plots/
+*.pyc
