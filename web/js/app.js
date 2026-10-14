@@ -1360,6 +1360,8 @@ setInterval(() => { if (state.dayOffset === 0) { rescore(); renderTimeline(); } 
 
 refresh();
 loadInsights();
+// On narrow screens the Home tabs scroll sideways; keep this page's tab (the last) in view.
+document.querySelector('.top-tabs').scrollLeft = document.querySelector('.top-tabs').scrollWidth;
 // Back from WHOOP's sign-in page: say how it went, then tidy the URL.
 const whoopResult = new URLSearchParams(location.search).get('whoop');
 if (whoopResult) {

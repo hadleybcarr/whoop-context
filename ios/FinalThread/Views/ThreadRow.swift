@@ -9,13 +9,15 @@ struct ThreadRow: View {
     let score: String?
     var isBlock = false
     var feeling: Feeling?
+    /// Colors the bar by its low / medium / high band; nil keeps it purple (workouts, no data).
+    var stress: Double?
     /// Name on the left and meta on the right (Insights rows); timeline rows lead with the time.
     var nameFirst = false
     /// Shown after the meta text, e.g. a drop-down chevron.
     var accessory: AnyView?
 
-    private let barHeight: CGFloat = 26
-    private let knob: CGFloat = 22
+    private let barHeight: CGFloat = 18
+    private let knob: CGFloat = 15
     private var noData: Bool { score == nil }
 
     var body: some View {
@@ -80,12 +82,23 @@ struct ThreadRow: View {
     }
 
     private var bar: some View {
-        let fill: AnyShapeStyle = noData
-            ? AnyShapeStyle(Theme.cardRaised)
-            : isBlock
+        let fill: AnyShapeStyle
+        let ring: Color
+        if noData {
+            fill = AnyShapeStyle(Theme.cardRaised)
+            ring = Theme.card
+        } else if let stress {
+            // Darker at the start, like the purple bars; unscheduled time is dimmed below.
+            let hex = StressLevel(stress).hex
+            fill = AnyShapeStyle(LinearGradient(colors: [Color(hex: hex, mixedWith: 0x10141A, amount: 0.55), Color(hex: hex)],
+                                                startPoint: .leading, endPoint: .trailing))
+            ring = Color(hex: hex, mixedWith: 0x10141A, amount: 0.7)
+        } else {
+            fill = isBlock
                 ? AnyShapeStyle(LinearGradient(colors: [Theme.threadStart.opacity(0.5), Theme.threadEnd.opacity(0.5)], startPoint: .leading, endPoint: .trailing))
                 : AnyShapeStyle(LinearGradient(colors: [Theme.threadStart, Theme.threadEnd], startPoint: .leading, endPoint: .trailing))
-        let ring = noData ? Theme.card : isBlock ? Theme.threadRing.opacity(0.6) : Theme.threadRing
+            ring = isBlock ? Theme.threadRing.opacity(0.6) : Theme.threadRing
+        }
 
         return shape
             .fill(fill)
@@ -96,12 +109,14 @@ struct ThreadRow: View {
                     .frame(width: knob, height: knob)
                     .overlay {
                         Text(score ?? "")
-                            .font(.number(12, weight: .heavy))
+                            .font(.number(9.5, weight: .heavy))
                             .foregroundStyle(Color(hex: 0x1A1024))
                             .minimumScaleFactor(0.7)
                     }
-                    .padding(.trailing, 2)
+                    .padding(.trailing, (barHeight - knob) / 2) // centered in the rounded end
             }
+            .compositingGroup()
+            .opacity(isBlock && stress != nil && !noData ? 0.55 : 1)
     }
 }
 

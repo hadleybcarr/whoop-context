@@ -10,6 +10,15 @@ extension Color {
             opacity: opacity
         )
     }
+
+    /// `hex` blended toward `other`: amount 0 is `hex`, 1 is `other`. Opaque, unlike lowering opacity.
+    init(hex: UInt32, mixedWith other: UInt32, amount t: Double) {
+        func channel(_ shift: UInt32) -> Double {
+            let a = Double((hex >> shift) & 0xFF), b = Double((other >> shift) & 0xFF)
+            return (a + (b - a) * t) / 255
+        }
+        self.init(.sRGB, red: channel(16), green: channel(8), blue: channel(0))
+    }
 }
 
 /// Colors sampled from the WHOOP app, plus the thread component colors from the Figma frame.
@@ -86,6 +95,15 @@ enum StressLevel {
         case .high: Theme.stressHigh
         }
     }
+
+    /// Same colors as hex, for blending.
+    var hex: UInt32 {
+        switch self {
+        case .low: 0x4FA3E3
+        case .medium: 0x00E3A0
+        case .high: 0xF2A93B
+        }
+    }
 }
 
 // MARK: Type
@@ -147,6 +165,30 @@ struct WhoopBadge: View {
 }
 
 /// "‹ TODAY ›" row under the page title.
+/// WHOOP's Home tabs. This screen is the Context tab; the others live in the WHOOP app.
+struct TopTabs: View {
+    private let tabs = ["OVERVIEW", "SLEEP", "RECOVERY", "STRAIN", "CONTEXT"]
+    private let selected = "CONTEXT"
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(tabs, id: \.self) { tab in
+                let on = tab == selected
+                Text(tab)
+                    .caps(11, color: on ? .white : Theme.tabInactive)
+                    .fixedSize()
+                    .padding(.vertical, 8)
+                    .overlay(alignment: .bottom) {
+                        if on { Capsule().fill(.white).frame(height: 2) }
+                    }
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                if tab != tabs.last { Spacer(minLength: 8) }
+            }
+        }
+        .padding(.horizontal, Theme.gutter)
+    }
+}
+
 struct DateNav: View {
     let label: String
     let canGoBack: Bool

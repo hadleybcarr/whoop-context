@@ -1,4 +1,4 @@
-# The Final Thread: page + WHOOP backend + per-user training, in one small Python server.
+# Context: page + WHOOP backend + per-user training, in one small Python server.
 FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 HOST=0.0.0.0 PORT=8000

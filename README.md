@@ -1,4 +1,4 @@
-# The Final Thread
+# Context
 
 A concept page for the WHOOP app. It lines your Google Calendar up against your heart rate, so every event becomes a "thread": the bar length shows how far your heart rate rose above your daily baseline (stress, 0–3, the same scale as WHOOP's Stress Monitor). A separate ML model then learns which kinds of events stress you and which ones make you happy.
 
@@ -109,7 +109,7 @@ The repo includes a `Dockerfile` (page, WHOOP backend and training in one contai
 **Render (free tier, easiest)**
 1. Put this folder in a GitHub repo:
    ```bash
-   git init && git add . && git commit -m "The Final Thread" && git branch -M main
+   git init && git add . && git commit -m "Context" && git branch -M main
    git remote add origin https://github.com/YOU/final-thread.git && git push -u origin main
    ```
 2. On https://dashboard.render.com choose **New → Blueprint**, pick the repo and apply. Render builds the Dockerfile and gives you a URL like `https://final-thread.onrender.com`. Nothing else is needed for demo and sample data.

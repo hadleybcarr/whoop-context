@@ -170,9 +170,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Final Thread";
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Final Thread lines your calendar events up against your WHOOP heart rate, and can add events you name from unscheduled time.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Final Thread reads the heart rate and sleep WHOOP saves to Apple Health to score each part of your day.";
+				INFOPLIST_KEY_CFBundleDisplayName = Context;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Context lines your calendar events up against your WHOOP heart rate, and can add events you name from unscheduled time.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Context reads the heart rate and sleep WHOOP saves to Apple Health to score each part of your day.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
@@ -197,9 +197,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Final Thread";
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Final Thread lines your calendar events up against your WHOOP heart rate, and can add events you name from unscheduled time.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Final Thread reads the heart rate and sleep WHOOP saves to Apple Health to score each part of your day.";
+				INFOPLIST_KEY_CFBundleDisplayName = Context;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Context lines your calendar events up against your WHOOP heart rate, and can add events you name from unscheduled time.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Context reads the heart rate and sleep WHOOP saves to Apple Health to score each part of your day.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;

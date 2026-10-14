@@ -30,8 +30,8 @@
   --knob: #d9d9d9;
   --separator: rgba(217, 217, 217, 0.22);
 
-  --thread-h: 26px;
-  --knob-d: 22px;
+  --thread-h: 18px;
+  --knob-d: 15px;
   --gutter: 20px;
   --radius: 14px;
   --font-number: 'Barlow Condensed', 'DIN Condensed', 'Arial Narrow', sans-serif;
@@ -71,6 +71,17 @@ h1, .section-header, .row-label, .row-status, .insight-title, .sheet-title, .lev
 .icon-btn:hover { background: rgba(255, 255, 255, 0.06); }
 
 .date-nav { display: flex; align-items: center; gap: 4px; }
+.top-tabs {
+  width: 100%; min-width: 0; justify-self: stretch; display: flex; justify-content: space-between; gap: 8px; padding: 4px var(--gutter) 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.top-tabs::-webkit-scrollbar { display: none; }
+.top-tabs span {
+  position: relative; flex: none; padding: 6px 0 9px; white-space: nowrap;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--tab-inactive);
+}
+.top-tabs .active { color: #fff; }
+.top-tabs .active::after { content: ''; position: absolute; left: 0; right: 0.1em; bottom: 0; height: 2px; border-radius: 1px; background: #fff; }
 .date-nav button { width: 30px; height: 30px; display: grid; place-items: center; }
 .date-nav svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .date-nav button:disabled { cursor: default; }
@@ -154,11 +165,12 @@ h1, .section-header, .row-label, .row-status, .insight-title, .sheet-title, .lev
   clip-path: inset(-3px -3px -3px 0);
   transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* Centered in the bar's rounded end, so its hover halo lines up with the bar's 3px outline. */
 .thread-knob {
-  position: absolute; right: 2px; top: 50%;
+  position: absolute; right: calc((var(--thread-h) - var(--knob-d)) / 2); top: 50%;
   width: var(--knob-d); height: var(--knob-d); margin-top: calc(var(--knob-d) / -2);
   display: grid; place-items: center; border-radius: 50%; background: var(--knob);
-  color: #1a1024; font-family: var(--font-number); font-size: 13px; font-weight: 700;
+  color: #1a1024; font-family: var(--font-number); font-size: 10px; font-weight: 700;
   transition: box-shadow 0.2s;
 }
 .thread-name {
@@ -184,7 +196,9 @@ h1, .section-header, .row-label, .row-status, .insight-title, .sheet-title, .lev
 /* Insights rows: event name on the left, count + chevron on the right. */
 .thread.name-left .thread-name { left: var(--gutter); right: auto; text-align: left; }
 .thread.name-left .thread-time { left: auto; right: var(--gutter); }
-.thread:hover .thread-knob, .thread:focus-visible .thread-knob { box-shadow: 0 0 0 6px rgba(217, 217, 217, 0.18); }
+.thread:hover .thread-knob, .thread:focus-visible .thread-knob {
+  box-shadow: 0 0 0 calc((var(--thread-h) - var(--knob-d)) / 2 + 3px) rgba(217, 217, 217, 0.18);
+}
 .thread:focus-visible { outline: none; }
 .add-icon {
   display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 6px;

@@ -117,7 +117,7 @@ struct InsightsScreen: View {
                 }
             } label: {
                 ThreadRow(name: title, meta: "\(count) event\(count == 1 ? "" : "s")", fraction: fraction, score: score,
-                          nameFirst: true,
+                          stress: fraction * 3, nameFirst: true,
                           accessory: AnyView(Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(Theme.muted)

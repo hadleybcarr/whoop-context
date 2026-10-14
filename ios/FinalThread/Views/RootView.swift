@@ -59,7 +59,7 @@ struct RootView: View {
     private var header: some View {
         @Bindable var store = store
         return VStack(spacing: 6) {
-            NavBar(title: "THE FINAL THREAD", back: { homeHint = true }) {
+            NavBar(title: "CONTEXT", back: { homeHint = true }) {
                 Button { showSettings = true } label: {
                     Image(systemName: "gearshape").font(.system(size: 20)).foregroundStyle(.white)
                         .frame(width: 40, height: 40)
@@ -73,6 +73,7 @@ struct RootView: View {
                 back: { store.dayOffset += 1 },
                 forward: { store.dayOffset -= 1 }
             )
+            TopTabs()
         }
         .padding(.top, 4)
     }

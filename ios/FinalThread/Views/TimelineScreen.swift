@@ -158,7 +158,8 @@ struct TimelineScreen: View {
             fraction: m?.fraction ?? 0,
             score: m.map { store.metric.format($0.value) },
             isBlock: item.isBlock,
-            feeling: store.feelings[item.id].flatMap(Feeling.init)
+            feeling: store.feelings[item.id].flatMap(Feeling.init),
+            stress: item.hasData && !item.active ? item.stress : nil
         )
     }
 

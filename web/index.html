@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>The Final Thread</title>
+  <title>Context</title>
   <link rel="icon" href="assets/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,7 +37,7 @@
     <header class="app-header">
       <div class="nav-row">
         <button class="icon-btn" id="back-home" aria-label="Back to WHOOP home"><svg><use href="#i-back"/></svg></button>
-        <h1>THE FINAL THREAD</h1>
+        <h1>CONTEXT</h1>
         <button class="icon-btn" id="open-settings" aria-label="Data sources"><svg><use href="#i-gear"/></svg></button>
       </div>
       <div class="date-nav">
@@ -45,6 +45,14 @@
         <button id="date-label" aria-label="Pick a date" aria-haspopup="dialog">TODAY</button>
         <button id="next-day" aria-label="Next day"><svg><use href="#i-right"/></svg></button>
       </div>
+      <!-- WHOOP's Home tabs; this page is the Context tab. The others live in the WHOOP app. -->
+      <nav class="top-tabs" aria-label="WHOOP Home">
+        <span>OVERVIEW</span>
+        <span>SLEEP</span>
+        <span>RECOVERY</span>
+        <span>STRAIN</span>
+        <span class="active" aria-current="page">CONTEXT</span>
+      </nav>
     </header>
 
     <div class="scroll" id="scroll">
