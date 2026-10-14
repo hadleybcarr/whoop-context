@@ -2,7 +2,9 @@
 
 WHOOP's OAuth flow needs a client secret, which can't live in browser code, so this server does
 the sign-in, keeps each visitor's tokens in memory (keyed by an HttpOnly cookie), and proxies the
-WHOOP API. It also trains the models on a visitor's own labels (POST /api/train).
+WHOOP API. It also trains the models on a visitor's own labels (POST /api/train), and reads a
+Google Calendar's private iCal address for visitors who connect that way (POST /api/calendar/ics),
+since browsers can't fetch it themselves.
 
 The WHOOP app keys can come from the server's config, or each visitor can paste the keys of their
 own WHOOP developer app (POST /auth/whoop/credentials); those stay in that visitor's session.
@@ -187,6 +189,61 @@ def whoop_data(session, start, end):
     }
 
 
+# Only Google Calendar's own iCal addresses, so the server can't be pointed at anything else.
+ICS_HOSTS = {"calendar.google.com"}
+MAX_ICS = 10_000_000
+
+
+def ics_events(url, start, end):
+    """Timed events (repeats expanded) between start and end from a calendar's iCal address."""
+    from datetime import datetime
+
+    import icalendar
+    import recurring_ical_events
+
+    url = url.strip()
+    if url.startswith("webcal://"):
+        url = "https://" + url[len("webcal://"):]
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme != "https" or parts.hostname not in ICS_HOSTS or not parts.path.endswith(".ics"):
+        raise ValueError("Paste the calendar's \"Secret address in iCal format\" (it starts with https://calendar.google.com and ends in .ics).")
+    req = urllib.request.Request(url, headers={"User-Agent": "Context calendar reader"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as res:
+            data = res.read(MAX_ICS + 1)
+    except urllib.error.HTTPError as err:
+        raise ValueError("Google didn't return that calendar. Check the address, or reset it in Google Calendar's settings and paste the new one.") from err
+    if len(data) > MAX_ICS:
+        raise ValueError("That calendar is too large to read.")
+    try:
+        calendar = icalendar.Calendar.from_ical(data)
+    except ValueError as err:
+        raise ValueError("That address didn't return a calendar file.") from err
+
+    parse = lambda s: datetime.fromisoformat(s.replace("Z", "+00:00"))
+    # Expanded occurrences lose their repeat rule, so note which events repeat from the source.
+    repeating = {str(c.get("UID")) for c in calendar.walk("VEVENT") if c.get("RRULE") or c.get("RDATE") or c.get("RECURRENCE-ID")}
+    events = []
+    for ev in recurring_ical_events.of(calendar).between(parse(start), parse(end)):
+        begin, finish = ev.get("DTSTART"), ev.get("DTEND")
+        # All-day events have dates, not times, so there's no window to compare heart rate against.
+        if not begin or not isinstance(begin.dt, datetime) or str(ev.get("STATUS", "")).upper() == "CANCELLED":
+            continue
+        begin = begin.dt
+        finish = finish.dt if finish else begin + ev.get("DURATION").dt if ev.get("DURATION") else begin
+        attendees = ev.get("ATTENDEE") or []
+        events.append({
+            "id": f"ics-{ev.get('UID', '')}-{begin.isoformat()}",
+            "title": str(ev.get("SUMMARY") or "(No title)"),
+            # Floating times (no zone) stay without an offset, so the browser reads them as local.
+            "start": begin.isoformat(),
+            "end": finish.isoformat(),
+            "attendees": len(attendees) if isinstance(attendees, list) else 1,
+            "recurring": str(ev.get("UID")) in repeating,
+        })
+    return events
+
+
 def train(payload):
     import io
 
@@ -295,6 +352,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             sid, _ = self.session()
             sessions.pop(sid, None)
             return self.send_json({"ok": True}, cookie=self.cookie_header("", max_age=0))
+        if path == "/api/calendar/ics":
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(min(length, 10_000)) or b"{}")
+            try:
+                return self.send_json({"events": ics_events(str(body.get("url", "")), body["start"], body["end"])})
+            except ImportError:
+                return self.send_json({"error": "Run the server with ml/.venv/bin/python to read calendars"}, 500)
+            except (ValueError, KeyError) as err:
+                return self.send_json({"error": str(err) if isinstance(err, ValueError) else "Missing start or end"}, 400)
+            except Exception:
+                logging.exception("Reading a calendar failed")
+                return self.send_json({"error": "Couldn't read that calendar right now. Try again in a moment."}, 502)
         if path == "/api/train":
             length = int(self.headers.get("Content-Length", 0))
             if length > MAX_BODY:

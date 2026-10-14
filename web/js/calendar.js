@@ -53,6 +53,19 @@ export async function createEvent({ title, start, end }) {
   return { id: item.id, title, start, end, attendees: 0, recurring: false };
 }
 
+// Timed events from a calendar's private iCal address ("Secret address in iCal format"), read by
+// this site's server since browsers can't fetch Google's .ics files directly. No sign-in needed.
+export async function fetchIcsEvents(url, start, end) {
+  const res = await fetch('/api/calendar/ics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, start: start.toISOString(), end: end.toISOString() }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `Calendar request failed (${res.status})`);
+  return body.events.map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+}
+
 // Timed events from the primary calendar between start and end. All-day events are skipped:
 // they have no time window to compare heart rate against.
 export async function fetchEvents(start, end) {

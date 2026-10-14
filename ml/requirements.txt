@@ -2,3 +2,6 @@
 numpy==2.5.4
 pandas==3.0.6
 scikit-learn==1.9.1
+# Reading a Google Calendar's private iCal address.
+icalendar==7.3.0
+recurring-ical-events==3.8.2

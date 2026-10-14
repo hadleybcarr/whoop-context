@@ -1,6 +1,6 @@
 import { generateDemo, generateWhoopDemo } from './demo.js';
 import { scoreDay, scoreEvent, localDate, toCsvRows, CSV_COLUMNS, METRICS, buildBlocks, typicalBedMinutes } from './scoring.js';
-import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents } from './calendar.js';
+import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents } from './calendar.js';
 import { parseHeartRateCsv } from './heartrate.js';
 import { whoopStatus, connectWhoop, disconnectWhoop, fetchWhoop, saveWhoopKeys, trainModel } from './whoop.js';
 
@@ -13,6 +13,8 @@ const CUSTOM_KEY = 'final-thread:custom-events';
 // A model trained on this visitor's own data, kept so it survives a reload.
 const INSIGHTS_KEY = 'final-thread:insights';
 const SAMPLE_WHOOP_KEY = 'final-thread:sample-whoop';
+// A Google Calendar's private iCal address, when connected that way. Stays in this browser.
+const ICAL_KEY = 'final-thread:ical-url';
 // Used when there's no WHOOP sleep data for a day.
 const DEFAULT_WAKE_MIN = 7 * 60;
 const DEFAULT_BED_MIN = 23 * 60;
@@ -55,6 +57,7 @@ const state = {
   metric: loadPref(METRIC_KEY, 'stress'),
   scored: [],
   insights: null,
+  icalUrl: loadPref(ICAL_KEY, '') || null,
   // WHOOP: workouts become events; daily holds recovery and strain by local date.
   // sample: showing generated WHOOP data alongside the demo calendar.
   whoop: { backend: false, configured: false, connected: false, sample: false },
@@ -820,7 +823,9 @@ async function loadInsights() {
 }
 
 // The demo model's results don't describe live data, so they're hidden once real data is in.
-const liveData = () => state.whoop.connected || calendarConnected();
+// Google Calendar is live through sign-in or through a private iCal address.
+const calendarLive = () => calendarConnected() || Boolean(state.icalUrl);
+const liveData = () => state.whoop.connected || calendarLive();
 const currentInsights = () => (state.insights?.demo && liveData() ? null : state.insights);
 
 // Every past occurrence of an event title, newest first, for the Drains / Lifts drop-downs.
@@ -1014,7 +1019,7 @@ function showSheet(id) {
 }
 
 function closeSheets() {
-  for (const id of ['sheet', 'coach', 'info', 'settings', 'whoop-setup', 'calendar']) {
+  for (const id of ['sheet', 'coach', 'info', 'settings', 'whoop-setup', 'calendar', 'calendar-setup']) {
     $(id).classList.remove('open');
     $(id).setAttribute('aria-hidden', 'true');
   }
@@ -1046,8 +1051,8 @@ function renderSource() {
   $('disconnect-whoop').hidden = !(whoop.connected || whoop.sample);
   $('disconnect-whoop').textContent = whoop.sample ? 'Stop using sample WHOOP data' : 'Disconnect WHOOP';
   $('train-model').hidden = !whoop.backend;
-  $('calendar-status').textContent = calendarConnected() ? 'CONNECTED' : 'CONNECT';
-  $('calendar-status').classList.toggle('connected', calendarConnected());
+  $('calendar-status').textContent = calendarLive() ? 'CONNECTED' : 'CONNECT';
+  $('calendar-status').classList.toggle('connected', calendarLive());
   const imported = !state.hrSource.startsWith('demo') && !state.hrSource.startsWith('no ');
   $('hr-status').textContent = imported ? 'IMPORTED' : 'CSV';
   $('hr-status').classList.toggle('connected', imported);
@@ -1170,8 +1175,8 @@ function openWhoopSetup() {
 }
 
 function useSampleWhoop({ quiet = false } = {}) {
-  if (calendarConnected()) {
-    toast('Sample WHOOP data goes with the demo calendar. Reload the page to go back to it.');
+  if (calendarLive()) {
+    if (!quiet) toast('Sample WHOOP data goes with the demo calendar. Disconnect your calendar to use it.');
     return;
   }
   state.whoop.sample = true;
@@ -1222,7 +1227,7 @@ async function onTrain() {
   try {
     state.insights = await trainModel({
       events_csv: rows.length ? [CSV_COLUMNS.join(','), ...rows].join('\n') : '',
-      days: (state.whoop.connected && calendarConnected()) || state.whoop.sample ? dayRows() : [],
+      days: (state.whoop.connected && calendarLive()) || state.whoop.sample ? dayRows() : [],
     });
     try { localStorage.setItem(INSIGHTS_KEY, JSON.stringify(state.insights)); } catch { /* storage unavailable */ }
     closeSheets();
@@ -1233,28 +1238,92 @@ async function onTrain() {
   }
 }
 
-async function onConnectCalendar() {
-  if (!calendarConfigured()) {
-    toast('Add your Google OAuth client ID in web/js/config.js first.');
-    return;
-  }
+// The days the page shows: history plus the days ahead.
+function calendarRange() {
+  const start = new Date(today);
+  start.setDate(start.getDate() - (HISTORY_DAYS - 1));
+  const end = new Date(today);
+  end.setDate(end.getDate() + FUTURE_DAYS + 1);
+  return [start, end];
+}
+
+function useCalendarEvents(events) {
+  // Demo HR and sleep against real events would invent results, so drop them.
+  dropDemo();
+  if (state.whoop.sample) stopSampleWhoop();
+  state.events = events;
+  state.calendarSource = 'Google Calendar';
+  refresh();
+}
+
+async function signInWithGoogle() {
   try {
     await connectCalendar();
-    const start = new Date(today);
-    start.setDate(start.getDate() - (HISTORY_DAYS - 1));
-    const end = new Date(today);
-    end.setDate(end.getDate() + FUTURE_DAYS + 1);
-    const events = await fetchEvents(start, end);
-    // Demo HR and sleep against real events would invent results, so drop them.
-    dropDemo();
-    if (state.whoop.sample) stopSampleWhoop();
-    state.events = events;
-    state.calendarSource = 'Google Calendar';
-    refresh();
+    useCalendarEvents(await fetchEvents(...calendarRange()));
+    closeSheets();
     toast(`Loaded ${state.events.length} events.`);
   } catch (err) {
     toast(err.message);
   }
+}
+
+// Connects (or, on page load, reconnects) through a private iCal address.
+async function connectIcal(url, { quiet = false } = {}) {
+  try {
+    const events = await fetchIcsEvents(url, ...calendarRange());
+    state.icalUrl = url;
+    savePref(ICAL_KEY, url);
+    useCalendarEvents(events);
+    if (!quiet) {
+      closeSheets();
+      toast(`Loaded ${events.length} events from Google Calendar.`);
+    }
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+// Ways to connect Google Calendar: sign in (when this site has a Google client ID), or paste the
+// calendar's private iCal address, which needs no setup on anyone's part.
+function openCalendarSetup() {
+  const signIn = calendarConfigured() ? `
+    <div class="setup">
+      <p>Sign in to read your events and add new ones from unscheduled time.</p>
+      <button class="primary-btn" data-cal-signin>SIGN IN WITH GOOGLE</button>
+    </div>
+    <div class="setup-or"><span>OR USE A PRIVATE LINK</span></div>` : '';
+  let link;
+  if (state.icalUrl) {
+    link = `
+      <p>Connected with your calendar's private address. Events refresh each time you open the page.</p>
+      <button class="text-btn" data-cal-disconnect>Disconnect calendar</button>`;
+  } else if (!state.whoop.backend) {
+    link = `<p>Reading a calendar link needs this app's server (<code>serve.py</code>), which this copy is running without.</p>`;
+  } else {
+    link = `
+      <p>Every Google Calendar has a private, read-only address. Paste it here to bring in your events:</p>
+      <ol class="setup-steps">
+        <li>On a computer, open <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener">Google Calendar settings</a>.</li>
+        <li>On the left, under <b>Settings for my calendars</b>, pick your calendar.</li>
+        <li>Scroll to <b>Integrate calendar</b> and copy the <b>Secret address in iCal format</b>.</li>
+      </ol>
+      <form class="add-form" id="ical-form">
+        <input class="text-input" name="url" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off" spellcheck="false" required>
+        <p class="form-hint">Keep this address private: anyone with it can see your events. It stays in this browser. Some work and school accounts hide this option.</p>
+        <button class="primary-btn" type="submit">CONNECT CALENDAR</button>
+      </form>`;
+  }
+  $('calendar-setup').innerHTML = `
+    <div class="sheet-handle"></div>
+    <h2 class="sheet-title" id="calendar-setup-title">GOOGLE CALENDAR</h2>
+    ${signIn}
+    <div class="setup">${link}</div>`;
+  $('ical-form')?.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    connectIcal(new FormData(ev.target).get('url').trim());
+  });
+  closeSheets();
+  showSheet('calendar-setup');
 }
 
 async function onImportHr(ev) {
@@ -1331,7 +1400,14 @@ document.addEventListener('click', (ev) => {
 });
 $('scrim').addEventListener('click', closeSheets);
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeSheets(); });
-$('connect-calendar').addEventListener('click', onConnectCalendar);
+$('connect-calendar').addEventListener('click', openCalendarSetup);
+$('calendar-setup').addEventListener('click', (ev) => {
+  if (ev.target.closest('[data-cal-signin]')) signInWithGoogle();
+  else if (ev.target.closest('[data-cal-disconnect]')) {
+    try { localStorage.removeItem(ICAL_KEY); } catch { /* storage unavailable */ }
+    location.reload();
+  }
+});
 $('hr-file').addEventListener('change', onImportHr);
 $('export-csv').addEventListener('click', onExport);
 $('connect-whoop').addEventListener('click', () => (state.whoop.connected ? loadWhoop({ announce: true }) : openWhoopSetup()));
@@ -1369,6 +1445,7 @@ if (whoopResult) {
   if (whoopResult === 'denied') toast('WHOOP access was not granted.');
   else if (whoopResult === 'error') toast('WHOOP sign-in failed. Check the redirect URL and keys, then try again.');
 }
+if (state.icalUrl) connectIcal(state.icalUrl, { quiet: true });
 loadWhoop({ announce: whoopResult === 'connected' }).then(() => {
   if (!state.whoop.connected && loadPref(SAMPLE_WHOOP_KEY, '') === '1') useSampleWhoop({ quiet: true });
   if (whoopResult === 'setup') openWhoopSetup();

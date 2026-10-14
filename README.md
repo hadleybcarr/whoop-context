@@ -76,12 +76,16 @@ Then open http://localhost:8000. It starts on demo data. (Plain `python3 serve.p
 ## Connect real data (web)
 
 **Google Calendar**
-1. In Google Cloud Console, enable the Google Calendar API.
-2. Create an OAuth client ID of type "Web application".
-3. Add `http://localhost:8000` as an authorized JavaScript origin.
-4. Paste the client ID into `web/js/config.js`.
 
-The page only asks for read access (`calendar.readonly`). It asks for write access only when you add an event to the calendar.
+Tap **Google Calendar** in the gear menu. There are two ways to connect:
+- **Private link (works for anyone, no setup).** Every Google Calendar has a read-only "Secret address in iCal format" (Google Calendar → Settings → your calendar → Integrate calendar). Paste it in the sheet. The server fetches it, since browsers can't load Google's `.ics` files directly, and expands repeating events. The address stays in that visitor's browser and is re-read each time the page opens. The server only fetches `https://calendar.google.com/….ics` addresses. Some work and school accounts hide this option.
+- **Sign in with Google.** This appears once the site has a Google OAuth client ID, and it can also add events you name from unscheduled time. To set it up:
+  1. In Google Cloud Console, enable the Google Calendar API.
+  2. Create an OAuth client ID of type "Web application".
+  3. Add `http://localhost:8000` (and your deployed URL) as authorized JavaScript origins.
+  4. Put the client ID in `.env` as `GOOGLE_CLIENT_ID` (or set it on your host), or paste it into `web/js/config.js`.
+
+  Sign-in only asks for read access (`calendar.readonly`). It asks for write access only when you add an event to the calendar.
 
 **WHOOP**
 
