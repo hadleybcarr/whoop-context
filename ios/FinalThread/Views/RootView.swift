@@ -47,7 +47,7 @@ struct RootView: View {
                 .presentationBackground(Theme.bgTop)
         }
         .sheet(isPresented: $showInfo) {
-            StressInfoSheet()
+            StressInfoSheet(isDemo: store.calendarSource == "Demo calendar" || store.healthSource == "demo heart rate")
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Theme.bgTop)
@@ -81,11 +81,28 @@ struct RootView: View {
 
 /// What the (i) next to the gauge explains.
 struct StressInfoSheet: View {
+    /// Demo calendar or heart rate in use: say plainly that what's on screen is mocked up.
+    var isDemo = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("HOW STRESS IS SCORED").caps(13)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
+            if isDemo {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MOCK-UP DATA").caps(11)
+                    Text("Everything here is a mock-up: the events, heart rate and stress scores are generated demo data, not real readings. Connect your own data from the gear menu.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.white.opacity(0.88))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 18).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Theme.cardRadius).fill(Theme.indigo.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.indigo, lineWidth: 1))
+            }
             Group {
                 Text("Each minute, your heart rate is compared with your resting baseline for the day (the lowest 10% of your awake readings). 40% or more above baseline is the top of WHOOP's 0–3 stress scale.")
                 Text("An event's score is the average over its minutes. Workouts are scored but left out of stress labels, since a higher heart rate there is effort. Free time between events is grouped into Unscheduled stretches you can name.")

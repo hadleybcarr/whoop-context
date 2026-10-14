@@ -12,9 +12,9 @@ own WHOOP developer app (POST /auth/whoop/credentials); those stay in that visit
 Config comes from environment variables or a .env file next to this script (all optional):
   WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET   from the WHOOP Developer Dashboard
   GOOGLE_CLIENT_ID   Google OAuth client for Calendar; overrides web/js/config.js
-  PUBLIC_URL    where visitors reach this server (default http://localhost:<port>, or the URL
-                Render, Railway or Fly.io gives the app); PUBLIC_URL + /auth/whoop/callback is
-                the WHOOP redirect URL
+  PUBLIC_URL    where visitors reach the app (default http://localhost:<port>, or the URL
+                Render, Railway or Fly.io gives it). With the frontend on Vercel, this is the
+                Vercel URL. PUBLIC_URL + /auth/whoop/callback is the WHOOP redirect URL
   HOST          interface to listen on (default 127.0.0.1; the Docker image uses 0.0.0.0)
   PORT          port to listen on (default 8000, or the first argument)
 
@@ -76,6 +76,9 @@ def default_public_url():
 
 
 PUBLIC_URL = (os.environ.get("PUBLIC_URL") or default_public_url()).rstrip("/")
+# Pages allowed to POST here: the public site (e.g. a Vercel frontend that proxies /api and /auth
+# to this server), this server's own address, and local development.
+ALLOWED_ORIGINS = {PUBLIC_URL, default_public_url().rstrip("/"), f"http://localhost:{PORT}"}
 REDIRECT_URI = f"{PUBLIC_URL}/auth/whoop/callback"
 CLIENT_ID = os.environ.get("WHOOP_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("WHOOP_CLIENT_SECRET", "")
@@ -344,7 +347,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         # Only the page itself may call these (blocks cross-site form posts).
         origin = self.headers.get("Origin")
-        if origin and origin != PUBLIC_URL and origin != f"http://localhost:{PORT}":
+        if origin and origin not in ALLOWED_ORIGINS:
             return self.send_json({"error": "Bad origin"}, 403)
         if path == "/auth/whoop/credentials":
             return self.whoop_credentials()

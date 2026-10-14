@@ -123,6 +123,15 @@ The repo includes a `Dockerfile` (page, WHOOP backend and training in one contai
 
 The free tier sleeps after 15 minutes without visitors, so the first load after that takes about a minute. A restart also signs everyone out of WHOOP (see below).
 
+**Frontend on Vercel, backend on Render**
+
+Vercel can host the page (project root: `web/`) while Render runs the backend. `web/vercel.json` forwards `/api/*`, `/auth/*` and `/js/config.js` to Render, so the browser only ever talks to your Vercel domain. That keeps the WHOOP sign-in cookie first-party and needs no cross-site (CORS) setup.
+1. In `web/vercel.json`, check the three `destination` URLs match your Render URL (they assume `https://final-thread.onrender.com`).
+2. On Render, set `PUBLIC_URL` to your Vercel URL, e.g. `https://context.vercel.app`. The server then uses it for the WHOOP redirect URL and accepts requests from that page.
+3. The WHOOP redirect URL becomes `https://<your-vercel-url>/auth/whoop/callback` (the in-app guide shows it), and the Google OAuth client's JavaScript origin is the Vercel URL.
+
+Render's free tier sleeps after 15 idle minutes. The first WHOOP or calendar request after that can time out on Vercel's side while Render wakes up; trying again works.
+
 **Anywhere else that runs Docker** (Railway, Fly.io, a VPS):
 ```bash
 docker build -t final-thread .

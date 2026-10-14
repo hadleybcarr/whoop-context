@@ -943,10 +943,25 @@ function recoveryHtml(rec) {
     ${chips('DAYS WITH THESE GO BEFORE HIGHER RECOVERY', rec.words?.raises)}`;
 }
 
+// Which parts of the page are generated demo data right now, said plainly in the scoring popup.
+function mockNote() {
+  const demoCalendar = state.calendarSource === 'Demo calendar';
+  const demoHr = state.hrSource === 'demo heart rate';
+  if (demoCalendar && demoHr) {
+    return `Everything here is a mock-up: the events, heart rate and stress scores are generated demo data, not real readings${state.whoop.sample ? ', and so are the WHOOP recovery and strain numbers' : ''}. Connect your own data from the gear menu.`;
+  }
+  const parts = [demoCalendar && 'calendar events', demoHr && 'heart rate and stress scores', state.whoop.sample && 'WHOOP recovery and strain numbers'].filter(Boolean);
+  if (!parts.length) return null;
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
+  return `The ${list} shown here are mock-up demo data, not real readings.`;
+}
+
 function openInfo() {
+  const mock = mockNote();
   $('info').innerHTML = `
     <div class="sheet-handle"></div>
     <h2 class="sheet-title" id="info-title">HOW STRESS IS SCORED</h2>
+    ${mock ? insightBox('Mock-up data', mock) : ''}
     <p>Each minute, your heart rate is compared with your resting baseline for the day (the lowest 10% of your awake readings). 40% or more above baseline is the top of WHOOP's 0–3 stress scale.</p>
     <p>An event's score is the average over its minutes. Workouts are scored but left out of stress labels, since a higher heart rate there is effort. Free time between events is grouped into Unscheduled stretches you can name.</p>`;
   showSheet('info');

@@ -290,7 +290,7 @@ label.group-row { cursor: pointer; }
 .sheet.settings, .sheet.info {
   top: auto; max-height: 70%; border-radius: 22px 22px 0 0; background: var(--bg-top); gap: 14px; padding-top: 8px;
 }
-.sheet.info p { margin: 0 var(--gutter); font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, 0.85); }
+.sheet.info > p { margin: 0 var(--gutter); font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, 0.85); }
 .sheet-handle { width: 38px; height: 5px; border-radius: 5px; background: var(--faint); margin: 0 auto 4px; }
 .settings-source { margin: 0 var(--gutter); text-align: center; font-size: 13px; color: var(--muted); }
 .hero { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 0 var(--gutter); }
