@@ -1,8 +1,7 @@
 import { generateDemo, generateWhoopDemo } from './demo.js';
-import { scoreDay, scoreEvent, localDate, toCsvRows, CSV_COLUMNS, METRICS, buildBlocks, typicalBedMinutes } from './scoring.js';
+import { scoreDay, scoreEvent, localDate, METRICS, buildBlocks, typicalBedMinutes } from './scoring.js';
 import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents, setGoogleClientId, updateEvent } from './calendar.js';
-import { parseHeartRateCsv } from './heartrate.js';
-import { whoopStatus, connectWhoop, disconnectWhoop, fetchWhoop, saveWhoopKeys, trainModel } from './whoop.js';
+import { whoopStatus, connectWhoop, disconnectWhoop, fetchWhoop, saveWhoopKeys } from './whoop.js';
 
 const HISTORY_DAYS = 21;
 // How far ahead the date picker goes, for planned events.
@@ -10,8 +9,6 @@ const FUTURE_DAYS = 14;
 const FEELINGS_KEY = 'final-thread:feelings';
 const METRIC_KEY = 'final-thread:metric';
 const CUSTOM_KEY = 'final-thread:custom-events';
-// A model trained on this visitor's own data, kept so it survives a reload.
-const INSIGHTS_KEY = 'final-thread:insights';
 const SAMPLE_WHOOP_KEY = 'final-thread:sample-whoop';
 // Changes made here to calendar events: { [eventId]: { title, start, end } }, reapplied on every load.
 const EDITS_KEY = 'final-thread:event-edits';
@@ -59,7 +56,9 @@ const state = {
   metric: loadPref(METRIC_KEY, 'stress'),
   scored: [],
   insights: null,
-  icalUrl: loadPref(ICAL_KEY, '') || null,
+  // Set once a private iCal address has actually loaded events; until then it's only saved.
+  icalUrl: null,
+  icalLoading: false,
   edits: loadEdits(),
   // WHOOP: workouts become events; daily holds recovery and strain by local date.
   // sample: showing generated WHOOP data alongside the demo calendar.
@@ -469,7 +468,7 @@ function renderTimeline() {
       ? `${items.length} event${items.length === 1 ? '' : 's'} planned. Each one is scored once it happens.`
       : 'Nothing planned yet.')
     : insightBox(null, state.whoop.connected && !state.samples.length
-      ? "Event stress needs minute-by-minute heart rate, which WHOOP's API doesn't share. Import a heart-rate CSV from the gear menu (Apple Health works) to score each event."
+      ? "Event stress needs minute-by-minute heart rate, which WHOOP's API doesn't share, so events aren't scored yet."
       : 'Scores appear once WHOOP has heart-rate data for this day.');
 
   const metric = METRICS[state.metric];
@@ -900,8 +899,6 @@ async function onAddEvent(ev, block) {
 // ---- Thread Coach (reads the ML model's output) ----
 
 async function loadInsights() {
-  try { state.insights = JSON.parse(localStorage.getItem(INSIGHTS_KEY)); } catch { /* storage unavailable */ }
-  if (state.insights) return;
   try {
     const res = await fetch('insights.json', { cache: 'no-store' });
     if (res.ok) state.insights = { ...(await res.json()), demo: true };
@@ -953,14 +950,7 @@ function renderCoach() {
   if (!ins) {
     $('coach').innerHTML = `${header}
       <div class="coach-msg"><span class="w-badge"><svg><use href="#w-mark"/></svg></span>
-        <p>No model yet. Rate some events, then tap <strong>Train my model</strong> in the gear menu.</p></div>`;
-    return;
-  }
-  if (!ins.events.length) {
-    $('coach').innerHTML = `${header}
-      <div class="coach-msg"><span class="w-badge"><svg><use href="#w-mark"/></svg></span>
-        <p>Event stress needs minute-by-minute heart rate. Import a heart-rate CSV to train it; until then, here's what your calendar does to your recovery.</p></div>
-      ${recoveryHtml(ins.recovery)}`;
+        <p>Insights are built from the demo data, so they're hidden while your own calendar or WHOOP is connected.</p></div>`;
     return;
   }
   const matching = ins.events.filter((e) => !coachFilter || titleMatches(e.title, coachFilter));
@@ -999,34 +989,7 @@ function renderCoach() {
     <div class="section-header"><span>DRAINS</span><span style="color:var(--muted)">AVG STRESS</span></div>
     ${drains.length ? `<ol class="threads">${drains.map(row).join('')}</ol>` : empty}
     <div class="section-header"><span>LIFTS</span><span style="color:var(--muted)">AVG STRESS</span></div>
-    ${lifts.length ? `<ol class="threads">${lifts.map(row).join('')}</ol>` : empty}
-    ${recoveryHtml(ins.recovery)}`;
-}
-
-// Next-morning recovery model: how a day's calendar shows up in WHOOP recovery the morning after.
-const EFFECT_LABELS = {
-  busy_min: 'Time in events', n_events: 'Number of events', attendees: 'People in meetings',
-  first_hour: 'Later first event', last_hour: 'Later last event', strain: 'Day strain',
-};
-
-function recoveryHtml(rec) {
-  if (!rec) return '';
-  if (rec.mae == null) {
-    return `<div class="section-label">NEXT-MORNING RECOVERY</div>
-      ${insightBox(null, `Needs ${rec.needed} days of calendar plus WHOOP recovery; you have ${rec.n}.`)}`;
-  }
-  const effects = Object.entries(rec.effects)
-    .filter(([, v]) => Math.abs(v) >= 0.5)
-    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-    .map(([k, v]) => ({ icon: 'pulse', label: EFFECT_LABELS[k] ?? k, value: `${v > 0 ? '+' : ''}${v.toFixed(1)}`, unit: 'pts' }));
-  const chips = (title, list) => list?.length ? `<div class="section-label">${title}</div>
-    <div class="words">${list.map((w) => `<span class="word">${escapeHtml(w)}</span>`).join('')}</div>` : '';
-  return `
-    <div class="section-label">NEXT-MORNING RECOVERY</div>
-    ${insightBox(null, `Trained on ${rec.n} days. It predicts the next morning's recovery within ${rec.mae.toFixed(0)} points on average, vs. ${rec.baseline_mae.toFixed(0)} by guessing your usual ${Math.round(rec.mean_recovery)}%.${rec.mae > 0.95 * rec.baseline_mae ? " That's no better than guessing yet, so treat the patterns below as hunches; more days will sharpen them." : ''} Each number is the change in recovery after a day that's higher than usual on that measure.`)}
-    ${effects.length ? statGroupHtml(effects) : ''}
-    ${chips('DAYS WITH THESE GO BEFORE LOWER RECOVERY', rec.words?.lowers)}
-    ${chips('DAYS WITH THESE GO BEFORE HIGHER RECOVERY', rec.words?.raises)}`;
+    ${lifts.length ? `<ol class="threads">${lifts.map(row).join('')}</ol>` : empty}`;
 }
 
 // Which parts of the page are generated demo data right now, said plainly in the scoring popup.
@@ -1151,12 +1114,9 @@ function renderSource() {
   $('whoop-status').classList.toggle('connected', whoop.connected || whoop.sample);
   $('disconnect-whoop').hidden = !(whoop.connected || whoop.sample);
   $('disconnect-whoop').textContent = whoop.sample ? 'Stop using sample WHOOP data' : 'Disconnect WHOOP';
-  $('train-model').hidden = whoop.backend === false;
-  $('calendar-status').textContent = calendarLive() ? 'CONNECTED' : 'CONNECT';
+  // CONNECTED only once events have loaded; a saved link that's still loading says so.
+  $('calendar-status').textContent = calendarLive() ? 'CONNECTED' : state.icalLoading ? 'LOADING…' : 'CONNECT';
   $('calendar-status').classList.toggle('connected', calendarLive());
-  const imported = !state.hrSource.startsWith('demo') && !state.hrSource.startsWith('no ');
-  $('hr-status').textContent = imported ? 'IMPORTED' : 'CSV';
-  $('hr-status').classList.toggle('connected', imported);
 }
 
 let toastTimer;
@@ -1317,48 +1277,6 @@ function stopSampleWhoop() {
   if (state.calendarSource === 'Demo calendar') state.sleep = demo.sleep;
 }
 
-// One row per past day for the next-morning recovery model (see build_recovery_insights in train.py).
-function dayRows() {
-  const hours = (d) => d.getHours() + d.getMinutes() / 60;
-  const rows = [];
-  for (let i = 1; i < HISTORY_DAYS; i++) {
-    const day = new Date(today); day.setDate(day.getDate() - i);
-    const next = new Date(day); next.setDate(next.getDate() + 1);
-    const key = localDate(day);
-    const events = [...state.events, ...state.customEvents].filter((e) => localDate(e.start) === key);
-    rows.push({
-      date: key,
-      weekday: day.getDay(),
-      titles: events.map((e) => e.title).join(' '),
-      n_events: events.length,
-      busy_min: events.reduce((a, e) => a + (e.end - e.start) / 60000, 0),
-      attendees: events.reduce((a, e) => a + (e.attendees ?? 0), 0),
-      first_hour: events.length ? Math.min(...events.map((e) => hours(e.start))) : null,
-      last_hour: events.length ? Math.max(...events.map((e) => hours(e.end))) : null,
-      strain: state.daily[key]?.strain ?? null,
-      next_recovery: state.daily[localDate(next)]?.recovery ?? null,
-    });
-  }
-  return rows;
-}
-
-async function onTrain() {
-  const rows = toCsvRows(state.scored, state.feelings);
-  toast('Training on your data…');
-  try {
-    state.insights = await trainModel({
-      events_csv: rows.length ? [CSV_COLUMNS.join(','), ...rows].join('\n') : '',
-      days: (state.whoop.connected && calendarLive()) || state.whoop.sample ? dayRows() : [],
-    });
-    try { localStorage.setItem(INSIGHTS_KEY, JSON.stringify(state.insights)); } catch { /* storage unavailable */ }
-    closeSheets();
-    openCoach();
-    toast('Model trained on your data.');
-  } catch (err) {
-    toast(err.message);
-  }
-}
-
 // The days the page shows: history plus the days ahead.
 function calendarRange() {
   const start = new Date(today);
@@ -1408,10 +1326,13 @@ async function whileBusy(form, label, work) {
 
 // Connects (or, on page load, reconnects) through a private iCal address. A gateway error (502-504)
 // usually means the server is still waking up: on page load that's retried quietly.
+// The calendar only counts as connected once events have loaded. A saved link that's rejected as a
+// bad address (400) is forgotten; any other failure keeps it for next time.
 async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
   try {
     const events = await fetchIcsEvents(url, ...calendarRange());
     state.icalUrl = url;
+    state.icalLoading = false;
     savePref(ICAL_KEY, url);
     useCalendarEvents(events);
     if (!quiet) {
@@ -1419,12 +1340,21 @@ async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
       toast(`Loaded ${events.length} events from Google Calendar.`);
     }
   } catch (err) {
-    const waking = err.status >= 502 && err.status <= 504;
+    const waking = !err.status || (err.status >= 502 && err.status <= 504);
     if (waking && quiet && attempt < STATUS_TRIES) {
       setTimeout(() => connectIcal(url, { quiet, attempt: attempt + 1 }), STATUS_RETRY_MS);
       return;
     }
-    toast(waking ? 'The server is still waking up. Try again in a moment.' : err.message);
+    state.icalLoading = false;
+    if (quiet && err.status === 400) {
+      try { localStorage.removeItem(ICAL_KEY); } catch { /* storage unavailable */ }
+      toast('Your saved Google Calendar link stopped working, so it was disconnected. Paste it again from the gear menu.');
+    } else {
+      toast(!waking ? err.message : quiet
+        ? "Couldn't reach the server to load your Google Calendar. It'll try again next time you open the page."
+        : 'The server is still waking up. Try again in a moment.');
+    }
+    renderSource();
   }
 }
 
@@ -1438,7 +1368,9 @@ function openCalendarSetup() {
     </div>
     <div class="setup-or"><span>OR USE A PRIVATE LINK</span></div>` : '';
   let link;
-  if (state.icalUrl) {
+  if (state.icalLoading) {
+    link = `<p>Loading your calendar from its private address…</p>`;
+  } else if (state.icalUrl) {
     link = `
       <p>Connected with your calendar's private address. Events refresh each time you open the page.</p>
       <button class="text-btn" data-cal-disconnect>Disconnect calendar</button>`;
@@ -1471,32 +1403,6 @@ function openCalendarSetup() {
   });
   closeSheets();
   showSheet('calendar-setup');
-}
-
-async function onImportHr(ev) {
-  const file = ev.target.files[0];
-  if (!file) return;
-  try {
-    state.samples = parseHeartRateCsv(await file.text());
-    state.sleep = {}; // no sleep data in the import, so use default wake and bed times
-    state.hrSource = `${file.name} (${state.samples.length.toLocaleString()} samples)`;
-    refresh();
-    toast('Heart rate imported.');
-  } catch (err) {
-    toast(err.message);
-  }
-  ev.target.value = '';
-}
-
-function onExport() {
-  const rows = toCsvRows(state.scored, state.feelings);
-  const blob = new Blob([[CSV_COLUMNS.join(','), ...rows].join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'events_labeled.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast(`Exported ${rows.length} events. Move it to ml/data/ and run train.py.`);
 }
 
 // ---- Wiring ----
@@ -1555,8 +1461,6 @@ $('calendar-setup').addEventListener('click', (ev) => {
     location.reload();
   }
 });
-$('hr-file').addEventListener('change', onImportHr);
-$('export-csv').addEventListener('click', onExport);
 $('connect-whoop').addEventListener('click', () => (state.whoop.connected ? loadWhoop({ announce: true }) : openWhoopSetup()));
 $('disconnect-whoop').addEventListener('click', async () => {
   if (state.whoop.sample) {
@@ -1576,7 +1480,6 @@ $('whoop-setup').addEventListener('click', (ev) => {
     navigator.clipboard?.writeText($('redirect-uri').textContent).then(() => toast('Redirect URL copied.'), () => {});
   }
 });
-$('train-model').addEventListener('click', onTrain);
 $('metric-select').addEventListener('change', (ev) => setMetric(ev.target.value));
 // Keep the "now" marker and today's stretches current.
 setInterval(() => { if (state.dayOffset === 0) { rescore(); renderTimeline(); } }, 60000);
@@ -1592,7 +1495,12 @@ if (whoopResult) {
   if (whoopResult === 'denied') toast('WHOOP access was not granted.');
   else if (whoopResult === 'error') toast('WHOOP sign-in failed. Check the redirect URL and keys, then try again.');
 }
-if (state.icalUrl) connectIcal(state.icalUrl, { quiet: true });
+const savedIcal = loadPref(ICAL_KEY, '');
+if (savedIcal) {
+  state.icalLoading = true;
+  renderSource();
+  connectIcal(savedIcal, { quiet: true });
+}
 loadWhoop({ announce: whoopResult === 'connected' }).then(() => {
   if (!state.whoop.connected && loadPref(SAMPLE_WHOOP_KEY, '') === '1') useSampleWhoop({ quiet: true });
   if (whoopResult === 'setup') openWhoopSetup();

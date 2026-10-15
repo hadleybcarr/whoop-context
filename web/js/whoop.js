@@ -46,10 +46,3 @@ export async function fetchWhoop(start, end) {
     cycles: data.cycles.map((c) => dates(c, 'start', 'end')),
   };
 }
-
-// Trains on the visitor's own labels. events_csv: export rows; days: one row per day (see train.py).
-export const trainModel = (payload) => getJson('/api/train', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload),
-});

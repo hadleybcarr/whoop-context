@@ -6,7 +6,6 @@ A concept page for the WHOOP app. It lines your Google Calendar up against your 
 web/            the page (plain HTML/CSS/JS, no build step)
   js/scoring.js   event × heart-rate scoring (also used by Node for the dataset)
   js/calendar.js  Google Calendar, read-only
-  js/heartrate.js heart-rate CSV import
   js/demo.js      demo calendar and heart rate
 ios/            native SwiftUI version (Xcode project)
 ml/train.py     stress and mood models → insights.json for both versions
@@ -71,7 +70,7 @@ Your Team ID is under Xcode → Settings → Accounts. Signing may fail on the H
 ml/.venv/bin/python serve.py
 ```
 
-Then open http://localhost:8000. It starts on demo data. (Plain `python3 serve.py` also works, but the "Train my model" button needs the ml venv.)
+Then open http://localhost:8000. It starts on demo data. (Plain `python3 serve.py` also works, but reading a calendar link needs the ml venv's libraries.)
 
 ## Connect real data (web)
 
@@ -98,13 +97,11 @@ Signing in happens on the server, since WHOOP's token exchange needs the client 
 - Sleep sets each day's wake time and your usual bedtime.
 - Workouts appear as events with their strain and heart rate, and count as physical activity.
 - Each day shows that morning's recovery, HRV and resting heart rate, plus the day's strain.
-- **Train my model** trains on your own data on the server. It trains the event stress model when there are 15+ events with heart rate, and a **next-morning recovery** model (your calendar on one day → WHOOP recovery the next morning) once there are 10+ days of calendar plus WHOOP (or sample) recovery. The result is stored in your browser and shown on the INSIGHTS screen.
+On INSIGHTS, **Drains** are the events with the highest predicted stress and **Lifts** the lowest. Both come from heart rate alone, not from the "How did it feel?" ratings. The page shows the model trained on the demo data (`web/insights.json`), and hides it once your own calendar or WHOOP is connected.
 
-On INSIGHTS, **Drains** are the events with the highest predicted stress and **Lifts** the lowest. Both come from heart rate alone, not from the "How did it feel?" ratings.
+WHOOP's API has no minute-by-minute heart rate, so events from a real calendar aren't scored for stress yet.
 
-WHOOP's API has no minute-by-minute heart rate, so per-event stress still needs a heart-rate import (below).
-
-**Heart rate:** use the gear menu's "Import heart rate" with any CSV that has a time column and a bpm column. An optional `stress` column is read too; otherwise stress is worked out minute by minute from heart rate. WHOOP's public API gives daily summaries (recovery, sleep, strain), not minute-by-minute heart rate. Apple Health is the easiest route: WHOOP writes heart rate there when that sync is on.
+**Heart rate:** WHOOP's public API gives daily summaries (recovery, sleep, strain), not minute-by-minute heart rate. The iOS app reads minute-level heart rate from Apple Health, where WHOOP writes it when that sync is on.
 
 ## Put it online
 
@@ -162,7 +159,7 @@ python3 -m venv ml/.venv && ml/.venv/bin/pip install -r ml/requirements.txt
 ml/.venv/bin/python ml/train.py
 ```
 
-`train.py` reads `ml/data/events_labeled.csv` (the file the page's "Export labels" button saves). If that file doesn't exist, it uses `ml/data/demo_events.csv`. To regenerate the demo file, run `node web/js/export_demo.mjs 60 > ml/data/demo_events.csv`.
+`train.py` reads `ml/data/events_labeled.csv` (the file the iOS app's Export saves). If that file doesn't exist, it uses `ml/data/demo_events.csv`. To regenerate the demo file, run `node web/js/export_demo.mjs 60 > ml/data/demo_events.csv`.
 
 It fits two ridge regressions on event features: title words (TF-IDF), time of day, weekday, duration, attendee count, and whether the event is recurring. Both are cross-validated by day. The results go to `web/insights.json`, which the INSIGHTS tab displays.
 
