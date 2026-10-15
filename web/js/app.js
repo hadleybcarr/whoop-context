@@ -1184,6 +1184,7 @@ function renderWhoopSetup() {
         <input class="text-input" name="secret" type="password" placeholder="Client Secret" autocomplete="off" required>
         <p class="form-hint">Your keys are kept on this server for your session only.</p>
         <button class="primary-btn" type="submit">CONNECT WHOOP</button>
+        <p class="form-hint busy-hint" hidden>Saving your keys. If the server was idle, this can take up to a minute.</p>
       </form>`;
   }
   $('whoop-setup').innerHTML = `
@@ -1195,15 +1196,17 @@ function renderWhoopSetup() {
       <p>Try it with sample WHOOP data that matches the demo calendar: daily recovery, HRV, resting heart rate and strain.</p>
       <button class="secondary-btn" data-whoop-sample>USE SAMPLE DATA</button>
     </div>`;
-  $('whoop-keys')?.addEventListener('submit', async (ev) => {
+  $('whoop-keys')?.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const form = new FormData(ev.target);
-    try {
-      await saveWhoopKeys(form.get('id'), form.get('secret'));
-      connectWhoop();
-    } catch (err) {
-      toast(err.message);
-    }
+    whileBusy(ev.target, 'CONNECTING…', async () => {
+      try {
+        await saveWhoopKeys(form.get('id'), form.get('secret'));
+        connectWhoop();
+      } catch (err) {
+        toast(err.message);
+      }
+    });
   });
 }
 
@@ -1300,6 +1303,24 @@ async function signInWithGoogle() {
   }
 }
 
+// Shows a form's submit button as busy until `work` settles. A server that's been idle can take a
+// minute to wake, and without this the button looks like it did nothing.
+async function whileBusy(form, label, work) {
+  const button = form.querySelector('[type=submit]');
+  const hint = form.querySelector('.busy-hint');
+  const idle = button.textContent;
+  button.disabled = true;
+  button.textContent = label;
+  hint && (hint.hidden = false);
+  try {
+    await work();
+  } finally {
+    button.disabled = false;
+    button.textContent = idle;
+    hint && (hint.hidden = true);
+  }
+}
+
 // Connects (or, on page load, reconnects) through a private iCal address. A gateway error (502-504)
 // usually means the server is still waking up: on page load that's retried quietly.
 async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
@@ -1351,6 +1372,7 @@ function openCalendarSetup() {
         <input class="text-input" name="url" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off" spellcheck="false" required>
         <p class="form-hint">Keep this address private: anyone with it can see your events. It stays in this browser. Some work and school accounts hide this option.</p>
         <button class="primary-btn" type="submit">CONNECT CALENDAR</button>
+        <p class="form-hint busy-hint" hidden>Reading your calendar. If the server was idle, this can take up to a minute.</p>
       </form>`;
   }
   $('calendar-setup').innerHTML = `
@@ -1360,7 +1382,7 @@ function openCalendarSetup() {
     <div class="setup">${link}</div>`;
   $('ical-form')?.addEventListener('submit', (ev) => {
     ev.preventDefault();
-    connectIcal(new FormData(ev.target).get('url').trim());
+    whileBusy(ev.target, 'CONNECTING…', () => connectIcal(new FormData(ev.target).get('url').trim()));
   });
   closeSheets();
   showSheet('calendar-setup');
