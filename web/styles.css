@@ -360,6 +360,7 @@ label.group-row { cursor: pointer; }
 .feel i { width: 12px; height: 12px; border-radius: 50%; }
 .feel.selected { background: var(--card-raised); color: #fff; }
 .text-btn { justify-self: center; font-size: 14px; font-weight: 600; color: var(--recovery-red); }
+.text-btn.neutral { color: var(--muted); }
 
 /* ---- Add-event form ---- */
 .add-form { display: grid; gap: 10px; padding: 0 var(--gutter); }

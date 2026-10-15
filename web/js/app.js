@@ -1,6 +1,6 @@
 import { generateDemo, generateWhoopDemo } from './demo.js';
 import { scoreDay, scoreEvent, localDate, toCsvRows, CSV_COLUMNS, METRICS, buildBlocks, typicalBedMinutes } from './scoring.js';
-import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents, setGoogleClientId } from './calendar.js';
+import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents, setGoogleClientId, updateEvent } from './calendar.js';
 import { parseHeartRateCsv } from './heartrate.js';
 import { whoopStatus, connectWhoop, disconnectWhoop, fetchWhoop, saveWhoopKeys, trainModel } from './whoop.js';
 
@@ -13,6 +13,8 @@ const CUSTOM_KEY = 'final-thread:custom-events';
 // A model trained on this visitor's own data, kept so it survives a reload.
 const INSIGHTS_KEY = 'final-thread:insights';
 const SAMPLE_WHOOP_KEY = 'final-thread:sample-whoop';
+// Changes made here to calendar events: { [eventId]: { title, start, end } }, reapplied on every load.
+const EDITS_KEY = 'final-thread:event-edits';
 // A Google Calendar's private iCal address, when connected that way. Stays in this browser.
 const ICAL_KEY = 'final-thread:ical-url';
 // Used when there's no WHOOP sleep data for a day.
@@ -58,6 +60,7 @@ const state = {
   scored: [],
   insights: null,
   icalUrl: loadPref(ICAL_KEY, '') || null,
+  edits: loadEdits(),
   // WHOOP: workouts become events; daily holds recovery and strain by local date.
   // sample: showing generated WHOOP data alongside the demo calendar.
   // backend: true / false (no server) / null (not reached yet; see whoopStatus).
@@ -90,6 +93,27 @@ function savePref(key, value) {
   try { localStorage.setItem(key, value); } catch { /* storage unavailable */ }
 }
 
+function loadEdits() {
+  try { return JSON.parse(localStorage.getItem(EDITS_KEY)) ?? {}; } catch { return {}; }
+}
+
+function saveEdits() {
+  try { localStorage.setItem(EDITS_KEY, JSON.stringify(state.edits)); } catch { /* storage unavailable */ }
+}
+
+// An event with this device's changes on top. `original` keeps the calendar's version for resetting.
+function withEdits(e) {
+  const ed = state.edits[e.id];
+  if (!ed) return e;
+  return {
+    ...e,
+    title: ed.title ?? e.title,
+    start: ed.start ? new Date(ed.start) : e.start,
+    end: ed.end ? new Date(ed.end) : e.end,
+    original: { title: e.title, start: e.start, end: e.end },
+  };
+}
+
 function saveFeelings() {
   try { localStorage.setItem(FEELINGS_KEY, JSON.stringify(state.feelings)); } catch { /* storage unavailable */ }
 }
@@ -105,7 +129,7 @@ function atMinutes(day, minutes) {
 // Scores calendar events plus the unscheduled blocks between them, from wake-up to usual bedtime.
 // Days ahead (negative i) only list their planned events: there's no free time to name yet.
 function rescore() {
-  const all = [...state.events, ...state.customEvents, ...state.workouts];
+  const all = [...state.events, ...state.customEvents].map(withEdits).concat(state.workouts);
   const bedMin = typicalBedMinutes(state.sleep) ?? DEFAULT_BED_MIN;
   const now = new Date();
   state.scored = [];
@@ -666,14 +690,15 @@ function openSheet(id) {
     <div class="nav-row">
       <button class="icon-btn" data-close aria-label="Back"><svg><use href="#i-back"/></svg></button>
       <h2 class="sheet-title">${state.metric === 'stress' ? 'STRESS MONITOR' : 'HEART RATE'}</h2>
-      <span></span>
+      ${editable(e) ? '<button class="icon-btn" data-edit-event aria-label="Edit event"><svg><use href="#i-edit"/></svg></button>' : '<span></span>'}
     </div>
-    <div class="hero"><h2 id="sheet-heading">${escapeHtml(e.block ? 'Unscheduled time' : e.title)}</h2><div class="when" id="when-slot">${whenHtml(e, e)}</div></div>
+    <div class="hero"><h2 id="sheet-heading">${escapeHtml(e.block ? 'Unscheduled time' : e.title)}</h2><div class="when" id="when-slot">${whenHtml(e, e)}${e.original ? ' · EDITED' : ''}</div></div>
     ${e.block ? addEventForm(e) : ''}
     <div class="hero-meta" id="hero-slot">${figureHtml(e)}</div>
     ${body}
     ${footer}`;
 
+  $('sheet').querySelector('[data-edit-event]')?.addEventListener('click', () => openEditSheet(e));
   $('add-form')?.addEventListener('submit', (ev) => onAddEvent(ev, e));
   $('add-form')?.addEventListener('input', (ev) => {
     const form = new FormData(ev.currentTarget);
@@ -695,8 +720,10 @@ function openSheet(id) {
   $('remove-event')?.addEventListener('click', () => {
     state.customEvents = state.customEvents.filter((c) => c.id !== e.id);
     delete state.feelings[e.id];
+    delete state.edits[e.id];
     saveCustomEvents();
     saveFeelings();
+    saveEdits();
     closeSheets();
     refresh();
   });
@@ -751,6 +778,64 @@ function similarHtml(e) {
       </button></li>`).join('')}</ul>
       </div></div>
     </li></ul>`;
+}
+
+// Calendar events (and ones added here) can be renamed and retimed; WHOOP workouts and free time can't.
+const editable = (e) => !e.block && !e.whoop;
+
+function openEditSheet(e) {
+  const writeBack = e.source === 'google' && calendarConnected();
+  $('sheet').innerHTML = `
+    <div class="nav-row">
+      <button class="icon-btn" data-edit-cancel aria-label="Cancel"><svg><use href="#i-back"/></svg></button>
+      <h2 class="sheet-title">EDIT EVENT</h2>
+      <span></span>
+    </div>
+    <div class="hero"><div class="when">${dayFmt.format(e.start).toUpperCase()}</div></div>
+    <form class="add-form" id="edit-form">
+      <input class="text-input" name="title" placeholder="Event name" maxlength="120" autocomplete="off" required value="${escapeHtml(e.title)}" aria-label="Event name">
+      <div class="stat-group">
+        <label class="group-row">${icon('clock')}<span class="row-label">From</span>
+          <input class="time-input" type="time" name="start" value="${hhmm(e.start)}" required></label>
+        <label class="group-row">${icon('clock')}<span class="row-label">To</span>
+          <input class="time-input" type="time" name="end" value="${hhmm(e.end)}" required></label>
+        ${writeBack ? `<label class="group-row check">${icon('trend')}<span class="row-label">Also update in Google Calendar</span><input type="checkbox" name="google" checked></label>` : ''}
+      </div>
+      <p class="form-hint">${writeBack ? 'Leave the box unchecked to change it here only.' : e.custom ? 'This event lives on this device.' : 'Changes are saved on this device. Your Google Calendar stays as it is.'}</p>
+      <button class="primary-btn" type="submit">SAVE</button>
+    </form>
+    ${e.original ? '<button class="text-btn neutral" id="reset-edit">Reset to calendar version</button>' : ''}`;
+
+  $('sheet').querySelector('[data-edit-cancel]').addEventListener('click', () => openSheet(e.id));
+  $('reset-edit')?.addEventListener('click', () => {
+    delete state.edits[e.id];
+    saveEdits();
+    refresh();
+    openSheet(e.id);
+    toast('Back to the calendar version.');
+  });
+  $('edit-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const form = new FormData(ev.target);
+    const title = form.get('title').trim();
+    const start = timeOnDay(e.start, form.get('start'));
+    const end = timeOnDay(e.start, form.get('end'));
+    if (!title || !start || !end) return;
+    if (end <= start) { toast('End time needs to be after the start time.'); return; }
+    whileBusy(ev.target, 'SAVING…', async () => {
+      try {
+        if (form.get('google')) await updateEvent(e.id, { title, start, end });
+      } catch (err) {
+        toast(err.message);
+        return;
+      }
+      state.edits[e.id] = { title, start: start.toISOString(), end: end.toISOString() };
+      saveEdits();
+      refresh();
+      openSheet(e.id);
+      toast(form.get('google') ? 'Saved here and in Google Calendar.' : 'Saved.');
+    });
+  });
 }
 
 function addEventForm(block) {

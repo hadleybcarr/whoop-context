@@ -55,7 +55,22 @@ export async function createEvent({ title, start, end }) {
   });
   if (!res.ok) throw new Error(`Could not add to Google Calendar (${res.status})`);
   const item = await res.json();
-  return { id: item.id, title, start, end, attendees: 0, recurring: false };
+  return { id: item.id, title, start, end, attendees: 0, recurring: false, source: 'google' };
+}
+
+// Changes an event's name and times in the primary calendar (asks for write access the first time).
+export async function updateEvent(id, { title, start, end }) {
+  writeToken ??= await requestToken(CALENDAR_WRITE_SCOPE);
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${writeToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      summary: title,
+      start: { dateTime: start.toISOString() },
+      end: { dateTime: end.toISOString() },
+    }),
+  });
+  if (!res.ok) throw new Error(`Could not update Google Calendar (${res.status})`);
 }
 
 // Timed events from a calendar's private iCal address ("Secret address in iCal format"), read by
@@ -100,6 +115,8 @@ export async function fetchEvents(start, end) {
         end: new Date(item.end.dateTime),
         attendees: item.attendees?.length ?? 0,
         recurring: Boolean(item.recurringEventId),
+        // Fetched with sign-in, so edits can be written back.
+        source: 'google',
       });
     }
     pageToken = body.nextPageToken;
