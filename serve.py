@@ -11,7 +11,7 @@ own WHOOP developer app (POST /auth/whoop/credentials); those stay in that visit
 
 Config comes from environment variables or a .env file next to this script (all optional):
   WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET   from the WHOOP Developer Dashboard
-  GOOGLE_CLIENT_ID   Google OAuth client for Calendar; overrides web/js/config.js
+  GOOGLE_CLIENT_ID   Google OAuth client for Calendar; sent to the page with /api/whoop/status
   PUBLIC_URL    where visitors reach the app (default http://localhost:<port>, or the URL
                 Render, Railway or Fly.io gives it). With the frontend on Vercel, this is the
                 Vercel URL. PUBLIC_URL + /auth/whoop/callback is the WHOOP redirect URL
@@ -328,8 +328,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         if path == "/healthz":
             return self.send_json({"ok": True})
-        if path == "/js/config.js" and GOOGLE_CLIENT_ID:
-            return self.google_config()
         try:
             if path == "/auth/whoop/login":
                 return self.whoop_login()
@@ -387,16 +385,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 TRAINING_SLOTS.release()
         self.send_error(404)
 
-    def google_config(self):
-        """web/js/config.js with the deployment's Google client ID filled in."""
-        source = (ROOT / "web" / "js" / "config.js").read_text()
-        data = source.replace("export const GOOGLE_CLIENT_ID = '';", f"export const GOOGLE_CLIENT_ID = {json.dumps(GOOGLE_CLIENT_ID)};").encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/javascript")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
     def whoop_credentials(self):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(min(length, 10_000)) or b"{}")
@@ -443,6 +431,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             "configured": all(client_keys(session)),
             "connected": bool(session and "access_token" in session),
             "redirect_uri": REDIRECT_URI,
+            "google_client_id": GOOGLE_CLIENT_ID,
         }
         if body["connected"]:
             profile = whoop_get(session, "/v2/user/profile/basic")

@@ -125,8 +125,8 @@ The free tier sleeps after 15 minutes without visitors, so the first load after 
 
 **Frontend on Vercel, backend on Render**
 
-Vercel can host the page (project root: `web/`) while Render runs the backend. `web/vercel.json` forwards `/api/*`, `/auth/*` and `/js/config.js` to Render, so the browser only ever talks to your Vercel domain. That keeps the WHOOP sign-in cookie first-party and needs no cross-site (CORS) setup.
-1. In `web/vercel.json`, check the three `destination` URLs match your Render URL (they assume `https://final-thread.onrender.com`).
+Vercel can host the page (project root: `web/`) while Render runs the backend. `web/vercel.json` forwards `/api/*` and `/auth/*` to Render, so the browser only ever talks to your Vercel domain. That keeps the WHOOP sign-in cookie first-party and needs no cross-site (CORS) setup.
+1. In `web/vercel.json`, check the two `destination` URLs match your Render URL (they assume `https://final-thread.onrender.com`).
 2. On Render, `PUBLIC_URL` must be the Vercel URL, `https://whoop-context-web.vercel.app`. `render.yaml` sets it, so a Blueprint deploy picks it up; on a service made another way, add it under **Environment**. The server uses it for the WHOOP redirect URL and accepts requests from that page.
 3. The WHOOP redirect URL (callback URL) is `https://whoop-context-web.vercel.app/auth/whoop/callback`; the in-app guide shows it too. The Google OAuth client's authorized JavaScript origin is `https://whoop-context-web.vercel.app`.
 

@@ -4,17 +4,20 @@
 async function getJson(url, options) {
   const res = await fetch(url, { credentials: 'same-origin', ...options });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(body.error ?? `Request failed (${res.status})`), { status: res.status });
   return body;
 }
 
-// { backend, server_keys, configured, connected, name, redirect_uri }.
-// On a static host there's no backend, so only sample data is on offer.
+// { backend, server_keys, configured, connected, name, redirect_uri, google_client_id }.
+// google_client_id rides along so the page needn't wait on the server to start.
+// backend is false only when the site has no server at all (a static host answers 404), so only
+// sample data is on offer. It's null when the server can't be reached yet: a host that sleeps
+// when idle (Render's free plan) can take a minute to wake, so that's worth asking again.
 export async function whoopStatus() {
   try {
     return await getJson('/api/whoop/status');
-  } catch {
-    return { backend: false, configured: false, connected: false };
+  } catch (err) {
+    return { backend: err.status === 404 ? false : null, configured: false, connected: false };
   }
 }
 

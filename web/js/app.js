@@ -1,6 +1,6 @@
 import { generateDemo, generateWhoopDemo } from './demo.js';
 import { scoreDay, scoreEvent, localDate, toCsvRows, CSV_COLUMNS, METRICS, buildBlocks, typicalBedMinutes } from './scoring.js';
-import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents } from './calendar.js';
+import { calendarConfigured, calendarConnected, connectCalendar, createEvent, fetchEvents, fetchIcsEvents, setGoogleClientId } from './calendar.js';
 import { parseHeartRateCsv } from './heartrate.js';
 import { whoopStatus, connectWhoop, disconnectWhoop, fetchWhoop, saveWhoopKeys, trainModel } from './whoop.js';
 
@@ -60,7 +60,8 @@ const state = {
   icalUrl: loadPref(ICAL_KEY, '') || null,
   // WHOOP: workouts become events; daily holds recovery and strain by local date.
   // sample: showing generated WHOOP data alongside the demo calendar.
-  whoop: { backend: false, configured: false, connected: false, sample: false },
+  // backend: true / false (no server) / null (not reached yet; see whoopStatus).
+  whoop: { backend: null, configured: false, connected: false, sample: false },
   workouts: [],
   daily: {},
 };
@@ -1065,7 +1066,7 @@ function renderSource() {
   $('whoop-status').classList.toggle('connected', whoop.connected || whoop.sample);
   $('disconnect-whoop').hidden = !(whoop.connected || whoop.sample);
   $('disconnect-whoop').textContent = whoop.sample ? 'Stop using sample WHOOP data' : 'Disconnect WHOOP';
-  $('train-model').hidden = !whoop.backend;
+  $('train-model').hidden = whoop.backend === false;
   $('calendar-status').textContent = calendarLive() ? 'CONNECTED' : 'CONNECT';
   $('calendar-status').classList.toggle('connected', calendarLive());
   const imported = !state.hrSource.startsWith('demo') && !state.hrSource.startsWith('no ');
@@ -1119,9 +1120,20 @@ function applyWhoop(data, { sample = false } = {}) {
   for (const c of data.cycles) day(localDate(new Date(c.start.getTime() + 12 * 3600000))).strain = c.strain;
 }
 
-async function loadWhoop({ announce = false } = {}) {
+// Asks the server how WHOOP stands. While a sleeping server wakes up, asks again every few seconds
+// (for about two minutes), and refreshes the WHOOP sheet if it's open and waiting.
+const STATUS_RETRY_MS = 5000;
+const STATUS_TRIES = 24;
+
+async function loadWhoop({ announce = false, attempt = 1 } = {}) {
   state.whoop = { ...(await whoopStatus()), sample: state.whoop.sample && !state.whoop.connected };
+  setGoogleClientId(state.whoop.google_client_id);
   renderSource();
+  if (state.whoop.backend === null && attempt < STATUS_TRIES) {
+    setTimeout(() => loadWhoop({ announce, attempt: attempt + 1 }), STATUS_RETRY_MS);
+    return;
+  }
+  if ($('whoop-setup').classList.contains('open')) renderWhoopSetup();
   if (!state.whoop.connected) return;
   const start = new Date(today);
   start.setDate(start.getDate() - HISTORY_DAYS);
@@ -1140,13 +1152,21 @@ async function loadWhoop({ announce = false } = {}) {
 // Steps for connecting WHOOP. A visitor without the site owner's keys registers their own WHOOP
 // developer app and pastes its keys; anyone can skip straight to sample data instead.
 function openWhoopSetup() {
+  renderWhoopSetup();
+  closeSheets();
+  showSheet('whoop-setup');
+}
+
+function renderWhoopSetup() {
   const w = state.whoop;
   let connect;
-  if (w.server_keys) {
+  if (w.backend === null) {
+    connect = `<p>Waking up the server… After it's been idle this can take up to a minute. This updates by itself.</p>`;
+  } else if (w.server_keys) {
     connect = `
       <p>Sign in with your WHOOP account to bring in sleep, workouts, recovery and strain.</p>
       <button class="primary-btn" data-whoop-signin>SIGN IN WITH WHOOP</button>`;
-  } else if (!w.backend) {
+  } else if (w.backend === false) {
     connect = `<p>Connecting WHOOP needs this app's server (<code>serve.py</code>). This copy is running without one, so only sample data is available.</p>`;
   } else {
     connect = `
@@ -1185,8 +1205,6 @@ function openWhoopSetup() {
       toast(err.message);
     }
   });
-  closeSheets();
-  showSheet('whoop-setup');
 }
 
 function useSampleWhoop({ quiet = false } = {}) {
@@ -1282,8 +1300,9 @@ async function signInWithGoogle() {
   }
 }
 
-// Connects (or, on page load, reconnects) through a private iCal address.
-async function connectIcal(url, { quiet = false } = {}) {
+// Connects (or, on page load, reconnects) through a private iCal address. A gateway error (502-504)
+// usually means the server is still waking up: on page load that's retried quietly.
+async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
   try {
     const events = await fetchIcsEvents(url, ...calendarRange());
     state.icalUrl = url;
@@ -1294,7 +1313,12 @@ async function connectIcal(url, { quiet = false } = {}) {
       toast(`Loaded ${events.length} events from Google Calendar.`);
     }
   } catch (err) {
-    toast(err.message);
+    const waking = err.status >= 502 && err.status <= 504;
+    if (waking && quiet && attempt < STATUS_TRIES) {
+      setTimeout(() => connectIcal(url, { quiet, attempt: attempt + 1 }), STATUS_RETRY_MS);
+      return;
+    }
+    toast(waking ? 'The server is still waking up. Try again in a moment.' : err.message);
   }
 }
 
@@ -1312,7 +1336,8 @@ function openCalendarSetup() {
     link = `
       <p>Connected with your calendar's private address. Events refresh each time you open the page.</p>
       <button class="text-btn" data-cal-disconnect>Disconnect calendar</button>`;
-  } else if (!state.whoop.backend) {
+  } else if (state.whoop.backend === false) {
+    // Only when there's definitely no server; a sleeping one just makes the request wait.
     link = `<p>Reading a calendar link needs this app's server (<code>serve.py</code>), which this copy is running without.</p>`;
   } else {
     link = `

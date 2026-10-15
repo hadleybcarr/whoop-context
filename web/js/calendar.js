@@ -2,8 +2,13 @@
 import { GOOGLE_CLIENT_ID, CALENDAR_SCOPE, CALENDAR_WRITE_SCOPE } from './config.js';
 
 let accessToken = null;
+// From config.js, or from the server (its GOOGLE_CLIENT_ID setting) once it answers.
+let clientId = GOOGLE_CLIENT_ID;
 
-export const calendarConfigured = () => Boolean(GOOGLE_CLIENT_ID);
+export const calendarConfigured = () => Boolean(clientId);
+export function setGoogleClientId(id) {
+  if (id) clientId = id;
+}
 export const calendarConnected = () => Boolean(accessToken);
 
 function loadGis() {
@@ -21,7 +26,7 @@ async function requestToken(scope) {
   await loadGis();
   return new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
+      client_id: clientId,
       scope,
       callback: (res) => (res.error ? reject(new Error(res.error)) : resolve(res.access_token)),
     });
@@ -62,7 +67,7 @@ export async function fetchIcsEvents(url, start, end) {
     body: JSON.stringify({ url, start: start.toISOString(), end: end.toISOString() }),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `Calendar request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(body.error ?? `Calendar request failed (${res.status})`), { status: res.status });
   return body.events.map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
 }
 
