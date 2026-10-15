@@ -419,6 +419,27 @@ label.group-row { cursor: pointer; }
 .cal-key i:nth-of-type(4) { margin-left: 10px; }
 .cal-foot button { padding: 6px 12px; border-radius: 999px; background: var(--card-raised); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; }
 
+/* ---- Loading ---- */
+.spinner {
+  display: inline-block; flex: none; width: 12px; height: 12px; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.35; } }
+/* Without spinning motion, a slow fade still says "working". */
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: pulse 1.6s ease-in-out infinite; border-right-color: currentColor; }
+}
+.loading-banner {
+  justify-self: center; display: inline-flex; align-items: center; margin: 0 var(--gutter);
+  padding: 8px 14px; border-radius: 999px; background: var(--card);
+  font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.loading-banner[hidden] { display: none; }
+.row-status .spinner { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.setup .loading-text { display: flex; align-items: center; }
+
 /* ---- WHOOP setup ---- */
 .setup { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 0 var(--gutter); }
 .setup > p { margin: 0; font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, 0.85); }

@@ -1115,8 +1115,9 @@ function renderSource() {
   $('disconnect-whoop').hidden = !(whoop.connected || whoop.sample);
   $('disconnect-whoop').textContent = whoop.sample ? 'Stop using sample WHOOP data' : 'Disconnect WHOOP';
   // CONNECTED only once events have loaded; a saved link that's still loading says so.
-  $('calendar-status').textContent = calendarLive() ? 'CONNECTED' : state.icalLoading ? 'LOADING…' : 'CONNECT';
+  $('calendar-status').innerHTML = calendarLive() ? 'CONNECTED' : state.icalLoading ? '<span class="spinner" aria-hidden="true"></span>LOADING' : 'CONNECT';
   $('calendar-status').classList.toggle('connected', calendarLive());
+  $('calendar-loading').hidden = !state.icalLoading;
 }
 
 let toastTimer;
@@ -1313,7 +1314,7 @@ async function whileBusy(form, label, work) {
   const hint = form.querySelector('.busy-hint');
   const idle = button.textContent;
   button.disabled = true;
-  button.textContent = label;
+  button.innerHTML = `<span class="spinner" aria-hidden="true"></span>${label}`;
   hint && (hint.hidden = false);
   try {
     await work();
@@ -1329,6 +1330,8 @@ async function whileBusy(form, label, work) {
 // The calendar only counts as connected once events have loaded. A saved link that's rejected as a
 // bad address (400) is forgotten; any other failure keeps it for next time.
 async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
+  state.icalLoading = true;
+  renderSource();
   try {
     const events = await fetchIcsEvents(url, ...calendarRange());
     state.icalUrl = url;
@@ -1338,6 +1341,8 @@ async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
     if (!quiet) {
       closeSheets();
       toast(`Loaded ${events.length} events from Google Calendar.`);
+    } else if ($('calendar-setup').classList.contains('open')) {
+      renderCalendarSetup();
     }
   } catch (err) {
     const waking = !err.status || (err.status >= 502 && err.status <= 504);
@@ -1355,12 +1360,19 @@ async function connectIcal(url, { quiet = false, attempt = 1 } = {}) {
         : 'The server is still waking up. Try again in a moment.');
     }
     renderSource();
+    if (quiet && $('calendar-setup').classList.contains('open')) renderCalendarSetup();
   }
 }
 
 // Ways to connect Google Calendar: sign in (when this site has a Google client ID), or paste the
 // calendar's private iCal address, which needs no setup on anyone's part.
 function openCalendarSetup() {
+  renderCalendarSetup();
+  closeSheets();
+  showSheet('calendar-setup');
+}
+
+function renderCalendarSetup() {
   const signIn = calendarConfigured() ? `
     <div class="setup">
       <p>Sign in to read your events and add new ones from unscheduled time.</p>
@@ -1369,7 +1381,7 @@ function openCalendarSetup() {
     <div class="setup-or"><span>OR USE A PRIVATE LINK</span></div>` : '';
   let link;
   if (state.icalLoading) {
-    link = `<p>Loading your calendar from its private address…</p>`;
+    link = `<p class="loading-text"><span class="spinner" aria-hidden="true"></span>Loading your calendar from its private address…</p>`;
   } else if (state.icalUrl) {
     link = `
       <p>Connected with your calendar's private address. Events refresh each time you open the page.</p>
@@ -1401,8 +1413,6 @@ function openCalendarSetup() {
     ev.preventDefault();
     whileBusy(ev.target, 'CONNECTING…', () => connectIcal(new FormData(ev.target).get('url').trim()));
   });
-  closeSheets();
-  showSheet('calendar-setup');
 }
 
 // ---- Wiring ----
@@ -1496,11 +1506,7 @@ if (whoopResult) {
   else if (whoopResult === 'error') toast('WHOOP sign-in failed. Check the redirect URL and keys, then try again.');
 }
 const savedIcal = loadPref(ICAL_KEY, '');
-if (savedIcal) {
-  state.icalLoading = true;
-  renderSource();
-  connectIcal(savedIcal, { quiet: true });
-}
+if (savedIcal) connectIcal(savedIcal, { quiet: true });
 loadWhoop({ announce: whoopResult === 'connected' }).then(() => {
   if (!state.whoop.connected && loadPref(SAMPLE_WHOOP_KEY, '') === '1') useSampleWhoop({ quiet: true });
   if (whoopResult === 'setup') openWhoopSetup();
